@@ -1,4 +1,6 @@
 use std::path::PathBuf;
+use std::path;
+use std::fs;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -10,24 +12,38 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Setup a mkfreebsdiso project
-    Setup {
+    /// Create a mkfreebsdiso project
+    Project {
+        #[arg(short = 'm', long = "mode", default_value = "direct", help = "Specify how you wish to make modifications to the base system")]
+        mode: String,
+
         // Setup - FreeBSD Version
-        #[arg(short = 'b', long = "bsd_version", value_name = "VERSION", help = "Specify a FreeBSD version to download from servers")]
+        #[arg(short = 'v', long = "bsd-version", default_value = "0.0", value_name = "VERSION", required_unless_present_all = ["basefile", "kernelfile"], help = "Specify a FreeBSD version to download from servers")]
         bsdver: String,
 
+        #[arg(short = 'b', long = "base-file", default_value = "base.txz", value_name = "FILE", conflicts_with_all = ["bsdver"], help = "Provide a FreeBSD base.txz file")]
+        basefile: String,
+
+        #[arg(short = 'k', long = "kernel-file", default_value = "kernel.txz", value_name = "FILE", conflicts_with_all = ["bsdver"], help = "Provide a FreeBSD kernel.txz file")]
+        kernelfile: String,
+
         // Work Directory
-        #[arg(short = 'd', long = "directory", help = "Specify working directory for the project")]
+        #[arg(short = 'p', long = "path", default_value = ".", help = "Specify working directory for the project")]
         workdir: String,
     },
 
     /// Compile the FreeBSD ISO image
     Build {
+        #[arg(short = 't', long = "type", help = "Specify the format(s) in which you wish to build the final image")]
+        formats: String,
+
         // Output Directoryy
-        #[arg(short = 'o', long = "out", help = "Specfify output directory of the resulting ISO image")]
+        #[arg(short = 'o', long = "out", required = false, help = "Specfify output directory of the resulting ISO image")]
         out: String
     }
 }
+
+
 
 // struct FetchFreeBSD;
 
@@ -92,6 +108,12 @@ async fn fetch_freebsd_images(version: String, workdir: String) -> Result<(), Bo
     Ok(())
 }
 
+fn init_project(directory: String) {
+    std::fs::create_dir("mkfreebsdiso-project");
+
+    
+}
+
 #[tokio::main]
 async fn main()  {
     let args = Args::parse();
@@ -99,12 +121,18 @@ async fn main()  {
     // println!("Hello {} {}!", Commands::Setup.workdir, Commands::Setup.bsdver);
 
     match args.command {
-        Commands::Setup { bsdver, workdir } => {
+        Commands::Project { mode, bsdver, basefile, kernelfile, workdir } => {
             // println!("Hello {} {}!", workdir, bsdver);
-            fetch_freebsd_images(bsdver, workdir).await.unwrap();
+            if bsdver != "0.0" {
+                fetch_freebsd_images(bsdver, workdir).await.unwrap();
+            } else {
+                if std::fs::read_dir(workdir)?.next().is_none() {
+                    init_project(workdir)
+                } 
+            }
         }
 
-        Commands::Build { out } => {
+        Commands::Build { formats, out } => {
             println!("{}", out);
         }
     }
